@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MNIST Digit Classifier</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --border: #2a2a3a;
+            --accent: #00f5c4;
+            --accent2: #7b5cff;
+            --text: #e8e8f0;
+            --muted: #6b6b80;
+        }
+
+        body {
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 1rem;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Grid bg */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(123,92,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(123,92,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        /* Glow blobs */
+        body::after {
+            content: '';
+            position: fixed;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(123,92,255,0.12) 0%, transparent 70%);
+            top: -100px; left: -100px;
+            pointer-events: none;
+        }
+
+        .blob2 {
+            position: fixed;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(0,245,196,0.08) 0%, transparent 70%);
+            bottom: -80px; right: -80px;
+            pointer-events: none;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            margin: 1rem 0;
+            box-shadow: 0 0 60px rgba(123,92,255,0.1), 0 20px 40px rgba(0,0,0,0.4);
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0,245,196,0.1);
+            border: 1px solid rgba(0,245,196,0.25);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 10px;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .badge::before {
+            content: '';
+            width: 6px; height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+        }
+
+        h1 span { color: var(--accent2); }
+
+        .subtitle {
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            margin-bottom: 1rem;
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 1.5px dashed var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .upload-zone:hover { border-color: var(--accent2); background: rgba(123,92,255,0.04); }
+
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .upload-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .upload-label strong { color: var(--accent2); }
+
+        /* Preview */
+        #imageContainer {
+            width: 100%;
+            aspect-ratio: 1;
+            max-height: 150px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+            background: #0d0d14;
+        }
+
+        #imageContainer.active { display: flex; }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* Button */
+        button {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, var(--accent2), #5a3ddb);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(123,92,255,0.3);
+        }
+
+        button:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(123,92,255,0.4); }
+        button:active { transform: translateY(0); }
+
+        /* Result */
+        #result {
+            margin-top: 0.75rem;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-box {
+            width: 100%;
+            background: rgba(0,245,196,0.06);
+            border: 1px solid rgba(0,245,196,0.2);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: fadeUp 0.4s ease both;
+        }
+
+        .result-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+
+        .result-digit {
+            font-family: 'Syne', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+
+    </style>
+    <script>
+        function previewImage(event) {
+            const container = document.getElementById("imageContainer");
+            const preview = document.getElementById("imagePreview");
+            const file = event.target.files[0];
+            const label = document.getElementById("uploadLabel");
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    preview.src = e.target.result;
+                    container.classList.add("active");
+                    label.textContent = file.name;
+                    document.getElementById("result").innerHTML = "";
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function uploadImage() {
+            const file = document.getElementById("imageInput").files[0];
+            if (!file) return;
+
+            const btn = document.querySelector("button");
+            btn.textContent = "Classifying...";
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("/predict", { method: "POST", body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById("result").innerHTML = `
+                        <div class="result-box">
+                            <div>
+                                <div class="result-label">Predicted Digit</div>
+                            </div>
+                            <div class="result-digit">${data.prediction}</div>
+                        </div>`;
+                })
+                .catch(() => {
+                    document.getElementById("result").innerHTML = `
+                        <div class="result-box" style="border-color:rgba(255,80,80,0.3);background:rgba(255,80,80,0.06)">
+                            <div class="result-label" style="color:#ff5050">Prediction failed</div>
+                        </div>`;
+                })
+                .finally(() => { btn.textContent = "Run Classifier"; btn.disabled = false; });
+        }
+    </script>
+</head>
+<body>
+    <div class="blob2"></div>
+
+    <div class="card">
+        <div class="badge">Neural Network</div>
+        <h1>MNIST Digit<br><span>Classifier</span></h1>
+        <p class="subtitle">// Convolutional model · 28×28 grayscale input</p>
+        <div class="divider"></div>
+
+        <div class="upload-zone">
+            <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
+            <div class="upload-icon">⬆</div>
+            <div class="upload-label"><strong>Click to upload</strong> or drag image here</div>
+            <div class="upload-label" id="uploadLabel" style="margin-top:4px">PNG, JPG, BMP accepted</div>
+        </div>
+
+        <div id="imageContainer">
+            <img id="imagePreview" src="" alt="Preview">
+        </div>
+
+        <button onclick="uploadImage()">Run Classifier</button>
+
+        <div id="result"></div>
+    </div>
+
+
+</body>
+</html>
